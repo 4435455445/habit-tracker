@@ -1,0 +1,240 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Habit Tracker</title>
+
+<style>
+body{
+  font-family: "Segoe UI", sans-serif;
+  background: linear-gradient(135deg,#667eea,#764ba2);
+  padding:20px;
+}
+
+h2{
+  text-align:center;
+  color:white;
+}
+
+.app{
+  background:white;
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 15px 30px rgba(0,0,0,.25);
+  overflow-x:auto;
+}
+
+.controls{
+  display:flex;
+  gap:10px;
+  margin-bottom:15px;
+  flex-wrap:wrap;
+}
+
+select,button{
+  padding:8px 12px;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+}
+
+button{
+  background:#667eea;
+  color:white;
+}
+
+table{
+  border-collapse:collapse;
+  width:100%;
+  margin-bottom:25px;
+}
+
+th,td{
+  border:1px solid #ddd;
+  padding:6px;
+  text-align:center;
+  font-size:13px;
+}
+
+th{
+  background:#f0f0f0;
+}
+
+input[type="checkbox"]{
+  transform:scale(1.2);
+  cursor:pointer;
+}
+
+input[type="text"]{
+  width:120px;
+  border:none;
+  background:transparent;
+}
+
+.graphs{
+  display:flex;
+  gap:20px;
+  flex-wrap:wrap;
+}
+
+canvas{
+  background:#fafafa;
+  border-radius:12px;
+  box-shadow:0 8px 15px rgba(0,0,0,.15);
+}
+</style>
+</head>
+
+<body>
+
+<h2>Habit Tracker</h2>
+
+<div class="app">
+  <div class="controls">
+    <select id="month" onchange="changeMonth()">
+      <option>January</option>
+      <option>February</option>
+      <option>March</option>
+      <option>April</option>
+      <option>May</option>
+      <option>June</option>
+      <option>July</option>
+      <option>August</option>
+      <option>September</option>
+      <option>October</option>
+      <option>November</option>
+      <option>December</option>
+    </select>
+
+    <button onclick="addHabit()">➕ Add Habit</button>
+    <button onclick="exportCSV()">⬇ Export Excel</button>
+  </div>
+
+  <table id="table"></table>
+
+  <div class="graphs">
+    <canvas id="line" width="500" height="250"></canvas>
+    <canvas id="bar" width="300" height="250"></canvas>
+  </div>
+</div>
+
+<script>
+const daysInMonth=[31,28,31,30,31,30,31,31,30,31,30,31];
+let monthIndex=0;
+
+let habits=JSON.parse(localStorage.getItem("habits_final")) || [];
+
+function save(){
+  localStorage.setItem("habits_final",JSON.stringify(habits));
+}
+
+function changeMonth(){
+  const select=document.getElementById("month");
+  monthIndex=select.selectedIndex;
+
+  habits.forEach(h=>{
+    if(!h.data[monthIndex]){
+      h.data[monthIndex]=Array(daysInMonth[monthIndex]).fill(false);
+    }
+  });
+
+  save();
+  render();
+}
+
+function addHabit(){
+  habits.push({
+    name:"New Habit",
+    data:Array.from({length:12},(_,i)=>Array(daysInMonth[i]).fill(false))
+  });
+  save();
+  render();
+}
+
+function toggle(h,d){
+  habits[h].data[monthIndex][d]=!habits[h].data[monthIndex][d];
+  save();
+  drawGraphs();
+}
+
+function render(){
+  const table=document.getElementById("table");
+  table.innerHTML="";
+
+  let header="<tr><th>Habit</th>";
+  for(let d=1;d<=daysInMonth[monthIndex];d++) header+=`<th>${d}</th>`;
+  header+="</tr>";
+  table.innerHTML+=header;
+
+  habits.forEach((h,hi)=>{
+    let row=`<tr><td>
+      <input value="${h.name}"
+      onchange="habits[${hi}].name=this.value;save()">
+      </td>`;
+    h.data[monthIndex].forEach((v,di)=>{
+      row+=`<td>
+        <input type="checkbox" ${v?"checked":""}
+        onclick="toggle(${hi},${di})">
+      </td>`;
+    });
+    row+="</tr>";
+    table.innerHTML+=row;
+  });
+
+  drawGraphs();
+}
+
+function drawGraphs(){
+  // LINE GRAPH
+  const lc=line.getContext("2d");
+  lc.clearRect(0,0,500,250);
+
+  let totals=Array(daysInMonth[monthIndex]).fill(0);
+  habits.forEach(h=>{
+    h.data[monthIndex].forEach((v,i)=>{ if(v) totals[i]++; });
+  });
+
+  lc.beginPath();
+  lc.moveTo(0,250);
+  totals.forEach((v,i)=>{
+    const x=i/daysInMonth[monthIndex]*500;
+    const y=250-(v/(habits.length||1))*250;
+    lc.lineTo(x,y);
+  });
+  lc.strokeStyle="#667eea";
+  lc.lineWidth=3;
+  lc.stroke();
+
+  // BAR GRAPH
+  const bc=bar.getContext("2d");
+  bc.clearRect(0,0,300,250);
+
+  habits.forEach((h,i)=>{
+    const done=h.data[monthIndex].filter(Boolean).length;
+    const height=(done/daysInMonth[monthIndex])*200;
+    bc.fillStyle="#764ba2";
+    bc.fillRect(i*50+30,250-height,30,height);
+  });
+}
+
+function exportCSV(){
+  let csv="Habit,Day,Completed\n";
+  habits.forEach(h=>{
+    h.data[monthIndex].forEach((v,i)=>{
+      csv+=`${h.name},${i+1},${v?"Yes":"No"}\n`;
+    });
+  });
+
+  const blob=new Blob([csv],{type:"text/csv"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="habit-tracker.csv";
+  a.click();
+}
+
+changeMonth();
+</script>
+
+</body>
+</html>
